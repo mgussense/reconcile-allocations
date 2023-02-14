@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { parse } from 'csv-parse';
+// import { CsvDataService } from "./objectToCsv";
 
 type ShortShip = {
     ORDERID: string;
@@ -10,14 +11,43 @@ type ShortShip = {
     QTY_SHIPPED: number;
     SHORTED: number;
 };
-let parsedObject;
-let temp = new Map();
+type SkuInfoObject = {
+    sku: string;
+    abandonedCount: number;
+    shippedCount: number;
+    date: string;
+}
+
+export type ReconciledResult = {
+    SKU: string;
+    COUNT_TO_RECONCILE: number;
+    SHIPPED_COUNT: number;
+    ABANDONED_COUNT: number;
+    ORDER_ID: string;
+    DATE: string;
+}
+let parsedObject: ShortShip[];
+let skusToReconcile: ReconciledResult[] = [];
+/**
+ * key: orderId
+ * value: skuInfoObject[]
+ * skuInfoObject: {sku: string, abandonedCount: number, shippedCount: number}
+ * abandonedCount = total units of a sku for an order that were abandoned
+ * shippedCount = total units of a sku for an order that were shipped
+ **/
+let map = new Map<string, SkuInfoObject[]>();
+
+/** EXAMPLE USE CASE
+ * Order contains 5 units of the same sku
+ * 3 is shipped/short shipped, 2 abandoned
+ * before bug fix, IMS is only notified of 1 unallocation due to duplicate dedupId
+ * we want to compute the actual total unallocation required for reconciliation = #shortShipped - 1
+ **/
 
 (() => {
-    const csvFilePath = path.resolve(__dirname, 'new.csv');
-
+    /** convert csv to object **/
+    const csvFilePath = path.resolve(__dirname, 'allocation_raw.csv');
     const headers = ['ORDERID', 'UPLOAD_DATE', 'SKUID', 'QTY_ORDERED', 'QTY_SHIPPED', 'SHORTED'];
-
     const fileContent = fs.readFileSync(csvFilePath, { encoding: 'utf-8' });
     parse(fileContent, {
         delimiter: ',',
@@ -36,23 +66,55 @@ let temp = new Map();
         parsedObject = result;
         // console.log("parsedObject", parsedObject);
 
+        /** use case validation starts here **/
         parsedObject.forEach((e, i, a) => {
             const orderId = e.ORDERID;
-            if (!temp.has(orderId)){
-                temp.set(orderId, [{sku: e.SKUID, shorted: e.SHORTED}]);
+            const currentSku = e.SKUID;
+            if (!map.has(orderId)){
+                map.set(orderId, [{sku: e.SKUID, abandonedCount: e.SHORTED, shippedCount: e.QTY_SHIPPED, date: e.UPLOAD_DATE}]);
             } else {
-                // appends items to value of map
-                let value = temp.get(orderId);
-                temp.set(orderId, value.push({sku: e.SKUID, shorted: e.SHORTED}))
+                // @ts-ignore
+                let listOfSkusForAnOrder: SkuInfoObject[] = map.get(orderId);
+                const skuExists = listOfSkusForAnOrder.some((s) => s.sku === currentSku);
+                // if sku already in map = inc totalCount, check if SHORTED = 1, inc abandonedCount
+                // SHORTED col definition: 1 = abandoned, 0 = not shorted/shipped
+                if (skuExists){
+                    const indexToUpdate = listOfSkusForAnOrder.findIndex((s) => s.sku === currentSku);
+                    // if sku already exists in map, then update sku object instance in values of map
+                    listOfSkusForAnOrder[indexToUpdate] = {
+                        sku: e.SKUID,
+                        abandonedCount: e.SHORTED + listOfSkusForAnOrder[indexToUpdate].abandonedCount,
+                        shippedCount: e.QTY_SHIPPED + listOfSkusForAnOrder[indexToUpdate].shippedCount,
+                        date: e.UPLOAD_DATE
+                    };
+                    map.set(orderId, listOfSkusForAnOrder);
+                } else {
+                    // if sku info for a given order doesn't exit in map, we append a new sku object instance
+                    // @ts-ignore
+                    listOfSkusForAnOrder.push({sku: e.SKUID, abandonedCount: e.SHORTED, shippedCount: e.QTY_SHIPPED, date: e.UPLOAD_DATE});
+                    map.set(orderId, listOfSkusForAnOrder);
+                }
             }
         })
 
-        for (const[k, v] of temp.entries()) {
-            // per order
-            // check if value.size > 1
-            // get shorted sku
-            // get units of the shorted sku that within the order
-            // if # of the sku
+        for (const[k, v] of map.entries()) {
+            // ignore single line item orders
+            if (v.length <= 1) continue;
+            // look for skus with shipped quantity >= 2
+            const temp = v.filter((s: {sku: string; abandonedCount: number; shippedCount: number; date: string}) => s.shippedCount >= 2)
+                .map(({ sku, abandonedCount, shippedCount , date}) => (
+                    skusToReconcile.push({
+                        SKU: sku,
+                        COUNT_TO_RECONCILE: shippedCount - 1,
+                        SHIPPED_COUNT: shippedCount,
+                        ABANDONED_COUNT: abandonedCount,
+                        ORDER_ID: k,
+                        DATE: date
+                    })));
         }
+        console.log(JSON.stringify(skusToReconcile));
+        // CsvDataService.exportToCsv('result.csv', skusToReconcile);
     });
 })();
+
+
