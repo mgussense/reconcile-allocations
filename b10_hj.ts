@@ -47,6 +47,19 @@ async function parseCSVFiles(file1: string, file2: string): Promise<CSVObject[]>
     return csvObjects;
 }
 
+// Function to write an array to a text file
+function writeArrayToFile(filename: string, array: any[]) {
+    const content = array.join('\n');
+
+    fs.writeFile(filename, content, (err) => {
+        if (err) {
+            console.error('An error occurred while writing the file:', err);
+        } else {
+            console.log(`Array successfully written to ${filename}`);
+        }
+    });
+}
+
 // Usage example
 const b10 = 'hjCutover/b10.csv';
 const b17 = 'hjCutover/b17.csv';
@@ -87,6 +100,9 @@ parseCSVFiles(b10, b17)
         }
         console.log("Orders that were unable to process: ", missing);
         console.log("Orders that were not recorded before rollout: ", extra);
+
+        writeArrayToFile('orders_not_processed.txt', missing);
+        writeArrayToFile('orders_not_recorded_before_rollout.txt', extra);
     })
     .catch((error) => {
         console.error('An error occurred:', error);
