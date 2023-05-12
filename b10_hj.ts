@@ -85,8 +85,8 @@ parseCSVFiles(b10, b17)
                 extra.push(k);
             }
         }
-        console.log(missing);
-        console.log(extra);
+        console.log("Orders that were unable to process: ", missing);
+        console.log("Orders that were not recorded before rollout: ", extra);
     })
     .catch((error) => {
         console.error('An error occurred:', error);
