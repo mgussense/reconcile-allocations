@@ -61,40 +61,40 @@ function writeArrayToFile(filename: string, array: any[]) {
 }
 
 // Usage example
-const b10 = 'hjCutover/b10.csv';
-const b17 = 'hjCutover/b17.csv';
-let b10Object: CSVRow[];
-let b17Object: CSVRow[];
-let b10map = new Map<string, string>();
-let b17map = new Map<string, string>();
+const wms = 'hjCutover/wms.csv';
+const hqm = 'hjCutover/hqm.csv';
+let wmsObject: CSVRow[];
+let hqmObject: CSVRow[];
+let wmsmap = new Map<string, string>();
+let hqmmap = new Map<string, string>();
 let missing:string[] = [];
 let extra:string[]  = [];
 
-parseCSVFiles(b10, b17)
+parseCSVFiles(wms, hqm)
     .then((csvObjects: CSVObject[]) => {
         console.log('CSV files parsed successfully!');
         console.log('Parsed CSV Objects:');
-        b10Object = csvObjects[0].file1Rows;
-        b17Object = csvObjects[1].file2Rows;
-        console.log(b10Object);
-        console.log(b17Object);
+        wmsObject = csvObjects[0].file1Rows;
+        hqmObject = csvObjects[1].file2Rows;
+        console.log(wmsObject);
+        console.log(hqmObject);
 
-        b10Object.forEach((row, i, a) => {
+        wmsObject.forEach((row, i, a) => {
             const {orderId, status} = row;
-            b10map.set(orderId, status);
+            wmsmap.set(orderId, status);
         })
-        b17Object.forEach((row, i, a) => {
+        hqmObject.forEach((row, i, a) => {
             const {orderId, status} = row;
-            b17map.set(orderId, status);
+            hqmmap.set(orderId, status);
         })
 
-        for (const[k,v] of b10map.entries()) {
-            if (!b17map.has(k)){
+        for (const[k,v] of wmsmap.entries()) {
+            if (!hqmmap.has(k)){
                 missing.push(k);
             }
         }
-        for (const[k,v] of b17map.entries()) {
-            if (!b10map.has(k)){
+        for (const[k,v] of hqmmap.entries()) {
+            if (!wmsmap.has(k)){
                 extra.push(k);
             }
         }
