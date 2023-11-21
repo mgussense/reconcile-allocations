@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 
-const inputFilePath = 'orders_not_processed.txt';
-const outputFilePath = 'marg.txt';
+const inputFilePath = 'prod.txt';
+const outputFilePath = 'ors-failures.txt';
 
 // Read the input file
 fs.readFile(inputFilePath, 'utf8', (error, data) => {
